@@ -24,10 +24,4 @@ void loop()
 {
   myKnob.checkOnRotaryEncoder();
   myKnob.checkOnPushButton();
-
-  if(( (Time.now() - timeOfLastKnobDump) > 5) && myKnob.knobTurnHasOccurred() )
-  {
-    Serial.println("Total offset: " + String( myKnob.retrieveRotaryKnobOffset() ) );
-    timeOfLastKnobDump = Time.now();
-  }
 }

@@ -48,6 +48,23 @@ void RotaryEncoderWithPush::setup()
   attachInterrupt(pushButtonInputPin, &RotaryEncoderWithPush::pushButtonInterruptHandler, this, CHANGE);
 }
 
+//Indicates whether button is currently depressed
+bool RotaryEncoderWithPush::buttonIsCurrentlyDepressed()
+{
+  return buttonCurrentlyDepressed;
+}
+
+//Returns number of milliseconds button has currently been held for
+//If button not currently held, returns 0
+unsigned long RotaryEncoderWithPush::millisButtonHeldFor()
+{
+  if( !buttonCurrentlyDepressed )
+    return 0;
+  //current time minus point at which button was last pressed
+  return ( millis() - millisAtWhichButtonWasLastPressed );
+}
+
+
 //Relative position of rotary knob since it was last checked.
 //This counts as checking and will clear the current value back to 0
 int RotaryEncoderWithPush::retrieveRotaryKnobOffset()
@@ -69,6 +86,9 @@ bool RotaryEncoderWithPush::knobTurnHasOccurred()
   return ( rotaryKnobOffsetSinceLastCheck != 0 );
 }
 
+//Kernel methods to check on and sample each hardware device
+//following a potential interrupt
+//These should be called frequently to check whether interrupts have occurred
 void RotaryEncoderWithPush::checkOnRotaryEncoder()
 {
   //static delcaration to avoid re-allocation
@@ -83,10 +103,8 @@ void RotaryEncoderWithPush::checkOnRotaryEncoder()
   //At this point we know one of our interrupts has occurred
   
   //If we haven't waited long enough for the value to resolve, return
-  if( !EnoughMillisHaveElapsed(millisOfLastRotaryInterrupt, 1) )
+  if( !EnoughMillisHaveElapsed(millisOfLastRotaryInterrupt, 3) )
     return; 
-
-  // if( millis()- )
 
   //temporary state for this method
   channelAState = pinReadFast(rotaryInputPinChannelA);
@@ -94,6 +112,13 @@ void RotaryEncoderWithPush::checkOnRotaryEncoder()
 
   if( interruptOccurredOnRotaryChannelA )
   {
+    if( channelAState ) //if chan A is high, this is an error
+    {
+      // Serial.println("Error A caught");
+      interruptOccurredOnRotaryChannelA = false;
+      return;
+    }
+
     //reset flag
     interruptOccurredOnRotaryChannelA = false;
 
@@ -105,6 +130,13 @@ void RotaryEncoderWithPush::checkOnRotaryEncoder()
 
   else if( interruptOccurredOnRotaryChannelB )
   {
+    if( channelBState ) //if chan B is high, this is an error
+    {
+      // Serial.println("Error B caught");
+      interruptOccurredOnRotaryChannelB = false;
+      return;
+    }
+
     //reset flag
     interruptOccurredOnRotaryChannelB = false;
 
@@ -118,6 +150,9 @@ void RotaryEncoderWithPush::checkOnRotaryEncoder()
 }
 
 
+//Kernel methods to check on and sample each hardware device
+//following a potential interrupt
+//These should be called frequently to check whether interrupts have occurred
 void RotaryEncoderWithPush::checkOnPushButton()
 {
   if( !pushButtonInterruptOccurred )

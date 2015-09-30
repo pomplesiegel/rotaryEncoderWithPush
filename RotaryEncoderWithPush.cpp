@@ -48,12 +48,34 @@ void RotaryEncoderWithPush::setup()
   attachInterrupt(pushButtonInputPin, &RotaryEncoderWithPush::pushButtonInterruptHandler, this, CHANGE);
 }
 
-//temp variables used by checkOnRotaryEncoder()
-static bool channelAState = false;
-static bool channelBState = false;
+//Relative position of rotary knob since it was last checked.
+//This counts as checking and will clear the current value back to 0
+int RotaryEncoderWithPush::retrieveRotaryKnobOffset()
+{
+  //static delcaration to avoid re-allocation
+  //This occurs only at program initialization time
+  static int currentKnobValueToReturn = 0;
+
+  currentKnobValueToReturn = rotaryKnobOffsetSinceLastCheck; 
+  rotaryKnobOffsetSinceLastCheck = 0; //reset knob offset value
+  return currentKnobValueToReturn;
+}
+
+
+//Indicates if the knob offset is != 0
+//Does not clear the current offset
+bool RotaryEncoderWithPush::knobTurnHasOccurred()
+{
+  return ( rotaryKnobOffsetSinceLastCheck != 0 );
+}
 
 void RotaryEncoderWithPush::checkOnRotaryEncoder()
 {
+  //static delcaration to avoid re-allocation
+  //This occurs only at program initialization time
+  static bool channelAState = false;
+  static bool channelBState = false;
+
   //If neither interrupt has occurred
   if( !interruptOccurredOnRotaryChannelA && !interruptOccurredOnRotaryChannelB )
     return;
@@ -63,6 +85,8 @@ void RotaryEncoderWithPush::checkOnRotaryEncoder()
   //If we haven't waited long enough for the value to resolve, return
   if( !EnoughMillisHaveElapsed(millisOfLastRotaryInterrupt, 1) )
     return; 
+
+  // if( millis()- )
 
   //temporary state for this method
   channelAState = pinReadFast(rotaryInputPinChannelA);

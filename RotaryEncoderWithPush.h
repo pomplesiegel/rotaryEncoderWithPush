@@ -17,6 +17,10 @@ void setup();
 //This counts as checking and will clear the current value back to 0
 int retrieveRotaryKnobOffset();
 
+//Indicates if the knob offset is != 0
+//Does not clear the current offset
+bool knobTurnHasOccurred();
+
 //Indicates whether button is currently depressed
 bool buttonIsCurrentlyDepressed();
 

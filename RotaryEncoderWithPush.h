@@ -9,7 +9,8 @@ class RotaryEncoderWithPush
 public:
 
 //Constructor
-RotaryEncoderWithPush(int _rotaryInputPinChannelA, int _rotaryInputPinChannelB, int _pushButtonInputPin);
+RotaryEncoderWithPush(int _rotaryInputPinChannelA, int _rotaryInputPinChannelB, 
+                      int _pushButtonInputPin, unsigned long _rotaryDebounceTime);
 
 //Method to set up the rotary encoder, including input and interrupt settings
 void setup();
@@ -61,5 +62,9 @@ volatile unsigned long millisOfLastRotaryInterrupt;
 const int rotaryInputPinChannelA;
 const int rotaryInputPinChannelB;
 const int pushButtonInputPin;
+
+//ms we wait before taking a reading of the rotary dial following an interrupt
+const unsigned long rotaryDebounceTime;
+
 };
 #endif

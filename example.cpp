@@ -6,7 +6,7 @@ SYSTEM_MODE(MANUAL);
 
 #include "RotaryEncoderWithPush.h"
 
-RotaryEncoderWithPush myKnob(D2, D3, D4);
+RotaryEncoderWithPush myKnob(D2, D3, D4, 1);
 
 void setup()
 {

@@ -18,10 +18,13 @@ bool EnoughMillisHaveElapsed(unsigned long lastMillisPerformed, unsigned long mi
 
 RotaryEncoderWithPush::RotaryEncoderWithPush( int _rotaryInputPinChannelA, 
                                               int _rotaryInputPinChannelB, 
-                                              int _pushButtonInputPin) :
+                                              int _pushButtonInputPin,
+                                              unsigned long _rotaryDebounceTime
+                                            ) :
                                               rotaryInputPinChannelA(_rotaryInputPinChannelA),
                                               rotaryInputPinChannelB(_rotaryInputPinChannelB),
-                                              pushButtonInputPin(_pushButtonInputPin)
+                                              pushButtonInputPin(_pushButtonInputPin),
+                                              rotaryDebounceTime(_rotaryDebounceTime)
 {
   //initial values
   interruptOccurredOnRotaryChannelA = false;
@@ -103,7 +106,7 @@ void RotaryEncoderWithPush::checkOnRotaryEncoder()
   //At this point we know one of our interrupts has occurred
   
   //If we haven't waited long enough for the value to resolve, return
-  if( !EnoughMillisHaveElapsed(millisOfLastRotaryInterrupt, 3) )
+  if( !EnoughMillisHaveElapsed(millisOfLastRotaryInterrupt, rotaryDebounceTime) )
     return; 
 
   //temporary state for this method

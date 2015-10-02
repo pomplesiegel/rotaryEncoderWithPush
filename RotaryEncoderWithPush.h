@@ -10,7 +10,8 @@ public:
 
 //Constructor
 RotaryEncoderWithPush(int _rotaryInputPinChannelA, int _rotaryInputPinChannelB, 
-                      int _pushButtonInputPin, unsigned long _rotaryDebounceTime);
+                      int _pushButtonInputPin, unsigned long _totalRotaryDebounceTimeMicros,
+                      unsigned int _numDebounceChecksInDebounceTime, unsigned long _rotaryTimeoutPeriodMillis);
 
 //Method to set up the rotary encoder, including input and interrupt settings
 void setup();
@@ -19,52 +20,54 @@ void setup();
 //This counts as checking and will clear the current value back to 0
 int retrieveRotaryKnobOffset();
 
-//Indicates if the knob offset is != 0
+//Indicates if the knob has been turned since user last called retrieveRotaryKnobOffset()
 //Does not clear the current offset
-bool knobTurnHasOccurred();
+bool knobTurnHasOccurredSinceLastCheck();
 
 //Indicates whether button is currently depressed
 bool buttonIsCurrentlyDepressed();
 
-//Returns number of milliseconds button has currently been held for
-//If button not currently held, returns 0
+//Returns number of milliseconds button was or has currently been held for
+//For greater context, check buttonIsCurrentlyDepressed() as well
 unsigned long millisButtonHeldFor();
 
-//Kernel methods to check on and sample each hardware device
-//following a potential interrupt
-//These should be called frequently to check whether interrupts have occurred
-void checkOnRotaryEncoder(); 
-void checkOnPushButton();
-
 protected:
-
 void rotaryInterruptHandlerChannelA();
 void rotaryInterruptHandlerChannelB();
 void pushButtonInterruptHandler();
 
-//Push button state
-bool buttonCurrentlyDepressed;
-unsigned long millisAtWhichButtonWasLastPressed;
+//Live state
+//--------------------------------
+//Button
 
-//Flag for push button interrupt
-volatile bool pushButtonInterruptOccurred; 
+volatile bool buttonCurrentlyDepressed;
+volatile unsigned long millisAtWhichButtonWasLastPressed;
+
+//Length of time for which the button was most recently held for
+volatile unsigned long millisButtonWasHeldFor;
 
 //Rotary encoder state
-int rotaryKnobOffsetSinceLastCheck;
+volatile bool rotaryKnobChangeHasOccurred;
+volatile int rotaryKnobOffsetSinceLastCheck;
 
-//State regarding rotary interrupts
-volatile bool interruptOccurredOnRotaryChannelA;
-volatile bool interruptOccurredOnRotaryChannelB;
-volatile unsigned long millisOfLastRotaryInterrupt;
-
+//Time of most recent successful rotary interrupt, so we can timeout for a bit
+volatile unsigned long millisOfMostRecentSuccessfulRotaryInterrupt; 
+//--------------------------------
 
 //Input pins used for sensing state of rotary encoder + push button
 const int rotaryInputPinChannelA;
 const int rotaryInputPinChannelB;
 const int pushButtonInputPin;
 
-//ms we wait before taking a reading of the rotary dial following an interrupt
-const unsigned long rotaryDebounceTime;
+//micros we wait before taking another reading of the rotary dial within an interrupt
+const unsigned long rotaryDebounceMicrosPerCheck;
+
+//Number of times we'll poll the switch for consistent values wihtin the debounce time
+const unsigned int numDebounceChecksInDebounceTime; 
+
+//How long after a successful rotary interrupt reading will the device timeout, 
+//ignoring other rotary interrupts
+const unsigned long rotaryTimeoutPeriodMillis; 
 
 };
 #endif

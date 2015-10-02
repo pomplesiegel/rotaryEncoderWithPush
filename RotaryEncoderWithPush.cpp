@@ -1,40 +1,27 @@
 #include "RotaryEncoderWithPush.h"
 
-//Millisecond version of Helper function for something we do very often:
-//See if it's been 'millisInterval' milliseconds since we last did a certain thing.
-//Includes error protection for millis overflow
-bool EnoughMillisHaveElapsed(unsigned long lastMillisPerformed, unsigned long millisInterval)
-{
-  //two functions: 1. See if enough milliseconds have elapsed
-  //since we last did a particular task
-  //2. Error checking for millis overflow, which occurs every 49 days
-  if ( ( millis() >= ( lastMillisPerformed + millisInterval ) ) or
-    ( millis() < lastMillisPerformed ) )
-  {
-    return true; //it's time to do 'it' again
-  }
-  return false; //not yet
-}
-
 RotaryEncoderWithPush::RotaryEncoderWithPush( int _rotaryInputPinChannelA, 
                                               int _rotaryInputPinChannelB, 
                                               int _pushButtonInputPin,
-                                              unsigned long _rotaryDebounceTime
+                                              unsigned long _totalRotaryDebounceTimeMicros,
+                                              unsigned int _numDebounceChecksInDebounceTime,
+                                              unsigned long _rotaryTimeoutPeriodMillis
                                             ) :
                                               rotaryInputPinChannelA(_rotaryInputPinChannelA),
                                               rotaryInputPinChannelB(_rotaryInputPinChannelB),
                                               pushButtonInputPin(_pushButtonInputPin),
-                                              rotaryDebounceTime(_rotaryDebounceTime)
+                                              rotaryDebounceMicrosPerCheck( _totalRotaryDebounceTimeMicros / _numDebounceChecksInDebounceTime ),
+                                              numDebounceChecksInDebounceTime(_numDebounceChecksInDebounceTime),
+                                              rotaryTimeoutPeriodMillis(_rotaryTimeoutPeriodMillis)
 {
   //initial values
-  interruptOccurredOnRotaryChannelA = false;
-  interruptOccurredOnRotaryChannelB = false;
-  millisOfLastRotaryInterrupt = 0;
+  rotaryKnobChangeHasOccurred = false;
   rotaryKnobOffsetSinceLastCheck = 0;
 
-  pushButtonInterruptOccurred = false;
   buttonCurrentlyDepressed = false;
   millisAtWhichButtonWasLastPressed = 0;
+  millisButtonWasHeldFor = 0;
+  millisOfMostRecentSuccessfulRotaryInterrupt = 0;
 }
 
 
@@ -51,6 +38,7 @@ void RotaryEncoderWithPush::setup()
   attachInterrupt(pushButtonInputPin, &RotaryEncoderWithPush::pushButtonInterruptHandler, this, CHANGE);
 }
 
+
 //Indicates whether button is currently depressed
 bool RotaryEncoderWithPush::buttonIsCurrentlyDepressed()
 {
@@ -61,8 +49,11 @@ bool RotaryEncoderWithPush::buttonIsCurrentlyDepressed()
 //If button not currently held, returns 0
 unsigned long RotaryEncoderWithPush::millisButtonHeldFor()
 {
+  //If button's not currently depressed, return how long it was last held for
   if( !buttonCurrentlyDepressed )
-    return 0;
+    return millisButtonWasHeldFor;
+
+  //Otherwise, do some math based on the current time
   //current time minus point at which button was last pressed
   return ( millis() - millisAtWhichButtonWasLastPressed );
 }
@@ -78,128 +69,75 @@ int RotaryEncoderWithPush::retrieveRotaryKnobOffset()
 
   currentKnobValueToReturn = rotaryKnobOffsetSinceLastCheck; 
   rotaryKnobOffsetSinceLastCheck = 0; //reset knob offset value
+  rotaryKnobChangeHasOccurred = false;
   return currentKnobValueToReturn;
 }
 
 
 //Indicates if the knob offset is != 0
 //Does not clear the current offset
-bool RotaryEncoderWithPush::knobTurnHasOccurred()
+bool RotaryEncoderWithPush::knobTurnHasOccurredSinceLastCheck()
 {
-  return ( rotaryKnobOffsetSinceLastCheck != 0 );
+  return ( rotaryKnobChangeHasOccurred );
 }
 
-//Kernel methods to check on and sample each hardware device
-//following a potential interrupt
-//These should be called frequently to check whether interrupts have occurred
-void RotaryEncoderWithPush::checkOnRotaryEncoder()
-{
-  //static delcaration to avoid re-allocation
-  //This occurs only at program initialization time
-  static bool channelAState = false;
-  static bool channelBState = false;
-
-  //If neither interrupt has occurred
-  if( !interruptOccurredOnRotaryChannelA && !interruptOccurredOnRotaryChannelB )
-    return;
-
-  //At this point we know one of our interrupts has occurred
-  
-  //If we haven't waited long enough for the value to resolve, return
-  if( !EnoughMillisHaveElapsed(millisOfLastRotaryInterrupt, rotaryDebounceTime) )
-    return; 
-
-  //temporary state for this method
-  channelAState = pinReadFast(rotaryInputPinChannelA);
-  channelBState = pinReadFast(rotaryInputPinChannelB);
-
-  if( interruptOccurredOnRotaryChannelA )
-  {
-    if( channelAState ) //if chan A is high, this is an error
-    {
-      // Serial.println("Error A caught");
-      interruptOccurredOnRotaryChannelA = false;
-      return;
-    }
-
-    //reset flag
-    interruptOccurredOnRotaryChannelA = false;
-
-    if(channelBState)
-      rotaryKnobOffsetSinceLastCheck++;
-    else
-      return;
-  }
-
-  else if( interruptOccurredOnRotaryChannelB )
-  {
-    if( channelBState ) //if chan B is high, this is an error
-    {
-      // Serial.println("Error B caught");
-      interruptOccurredOnRotaryChannelB = false;
-      return;
-    }
-
-    //reset flag
-    interruptOccurredOnRotaryChannelB = false;
-
-    if(channelAState)
-      rotaryKnobOffsetSinceLastCheck--;
-    else
-      return;
-  }
-
-  Serial.println("Knob: " + String(rotaryKnobOffsetSinceLastCheck) );
-}
-
-
-//Kernel methods to check on and sample each hardware device
-//following a potential interrupt
-//These should be called frequently to check whether interrupts have occurred
-void RotaryEncoderWithPush::checkOnPushButton()
-{
-  if( !pushButtonInterruptOccurred )
-    return;
-
-  //reset flag
-  pushButtonInterruptOccurred = false;
-
-  //If button pressed
-  if( !pinReadFast(pushButtonInputPin) )
-  {
-    Serial.println("Button pressed!");
-    buttonCurrentlyDepressed = true;
-    millisAtWhichButtonWasLastPressed = millis();
-  }
-  else
-  {
-    Serial.println("Button released after " + String(millis()-millisAtWhichButtonWasLastPressed) + " ms" );
-    buttonCurrentlyDepressed = false;
-  }
-}
-
+//counter for interrupt debouncing
+static unsigned int i = 0;
 
 void RotaryEncoderWithPush::rotaryInterruptHandlerChannelA()
 {
-  //don't run if the last interrupt still hasn't been handled
-  if( interruptOccurredOnRotaryChannelA || interruptOccurredOnRotaryChannelB )
+  //If a successful interrupt has occurred very recently, ignore this one
+  if( ( millis() - millisOfMostRecentSuccessfulRotaryInterrupt ) < rotaryTimeoutPeriodMillis)
     return;
 
-  interruptOccurredOnRotaryChannelA = true; //mark that something happened
-  millisOfLastRotaryInterrupt = millis();
+  for(i=0; i < numDebounceChecksInDebounceTime; i++)
+  {
+    delayMicroseconds(rotaryDebounceMicrosPerCheck); //debounce delay
+    //if chan A is high, or chan B is low, this is an error
+    if( pinReadFast(rotaryInputPinChannelA) || !pinReadFast(rotaryInputPinChannelB) ) 
+      return; //ignore this interrupt and exit
+  }
+
+  millisOfMostRecentSuccessfulRotaryInterrupt = millis();
+
+  rotaryKnobOffsetSinceLastCheck++;
+  rotaryKnobChangeHasOccurred = true;
 }
+
 
 void RotaryEncoderWithPush::rotaryInterruptHandlerChannelB()
 {
-  //don't run if the last interrupt still hasn't been handled
-  if( interruptOccurredOnRotaryChannelA || interruptOccurredOnRotaryChannelB )
+  //If a successful interrupt has occurred very recently, ignore this one
+  if( ( millis() - millisOfMostRecentSuccessfulRotaryInterrupt ) < rotaryTimeoutPeriodMillis)
     return;
 
-  interruptOccurredOnRotaryChannelB = true; //mark that something happened
-  millisOfLastRotaryInterrupt = millis();
+  for(i=0; i < numDebounceChecksInDebounceTime; i++)
+  {
+    delayMicroseconds(rotaryDebounceMicrosPerCheck); //debounce delay
+    //if chan B is high, or chan A is low, this is an error
+    if( pinReadFast(rotaryInputPinChannelB) || !pinReadFast(rotaryInputPinChannelA) )
+      return; //ignore this interrupt and exit
+  }
+
+  millisOfMostRecentSuccessfulRotaryInterrupt = millis();
+
+  rotaryKnobOffsetSinceLastCheck--;
+  rotaryKnobChangeHasOccurred = true;
 }
+
 
 void RotaryEncoderWithPush::pushButtonInterruptHandler()
 {
-  pushButtonInterruptOccurred = true; //mark that button was pressed
+  //If button released
+  if( pinReadFast(pushButtonInputPin) )
+  {
+    buttonCurrentlyDepressed = false;
+    millisButtonWasHeldFor = millis() - millisAtWhichButtonWasLastPressed; 
+  }
+  //Button was pressed
+  else
+  {
+    buttonCurrentlyDepressed = true;
+    millisAtWhichButtonWasLastPressed = millis();
+  }
 }

@@ -2,11 +2,10 @@
 
 SYSTEM_MODE(MANUAL);
 
-#pragma SPARK_NO_PREPROCESSOR
-
 #include "RotaryEncoderWithPush.h"
 
-RotaryEncoderWithPush myKnob(D2, D3, D4, 1);
+RotaryEncoderWithPush myKnob(D2, D3, D4, 50, 4, 2);
+
 
 void setup()
 {
@@ -18,10 +17,14 @@ void setup()
   myKnob.setup();
 }
 
-static int timeOfLastKnobDump = 0;
+static int knobPosition = 0;
 
 void loop()
 {
-  myKnob.checkOnRotaryEncoder();
-  myKnob.checkOnPushButton();
+
+  if( myKnob.knobTurnHasOccurredSinceLastCheck() )
+  {
+    knobPosition += myKnob.retrieveRotaryKnobOffset(); 
+    Serial.println("Knob: " + String(knobPosition) );
+  }
 }
